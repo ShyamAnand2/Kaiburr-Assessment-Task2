@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platinum-task-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: platinum-task-manager
+  template:
+    metadata:
+      labels:
+        app: platinum-task-manager
+    spec:
+      serviceAccountName: platinum-service-account
+      containers:
+      - name: platinum-task-manager
+        image: platinum-task-manager:v2
+        imagePullPolicy: Never
+
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATA_MONGODB_URI
+          value: "mongodb://mongodb-service:27017/test"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platinum-task-manager-service
+spec:
+  selector:
+    app: platinum-task-manager
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30080
+  type: NodePort
