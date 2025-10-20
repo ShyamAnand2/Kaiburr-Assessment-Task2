@@ -1,12 +1,12 @@
-# 🚀 Kaiburr Assessment 2025 — Task 2: Kubernetes Deployment
+# Kaiburr Assessment 2025 — Task 2: Kubernetes Deployment
 
-## 📦 Overview
+## Overview
 
 This project demonstrates **cloud-native deployment** of the Task Manager backend (Java/Spring Boot app) on a Kubernetes cluster. The application manages tasks, executes commands, and stores all data in MongoDB — now orchestrated entirely via containers and Kubernetes manifests. The solution is built for high portability, reliability, and scalability.
 
 ---
 
-## 🛠️ Features & Achievements
+## Features & Achievements
 
 - **Production-ready Docker images** for backend and MongoDB
 - **Kubernetes manifests** for deployment, service, persistent volume, and RBAC
@@ -18,7 +18,7 @@ This project demonstrates **cloud-native deployment** of the Task Manager backen
 
 ---
 
-## 🗂️ Project Structure
+## Project Structure
 ```
 task-manager/
 ├── Dockerfile
@@ -27,12 +27,10 @@ task-manager/
 │ ├── mongodb-deployment.yaml # MongoDB StatefulSet/Deployment & Persistent Volume
 │ └── rbac.yaml # Role-Based Access Control (if applicable)
 └── (additional source files)
-
-text
 ```
 ---
 
-## 🚦 Prerequisites
+## Prerequisites
 
 - [Docker](https://www.docker.com/)
 - [Minikube](https://minikube.sigs.k8s.io/docs/) or any Kubernetes cluster (local/managed)
@@ -41,7 +39,7 @@ text
 
 ---
 
-## ⚙️ Setup & Deployment
+## Setup & Deployment
 
 ### 1. **Build Docker Images**
 
