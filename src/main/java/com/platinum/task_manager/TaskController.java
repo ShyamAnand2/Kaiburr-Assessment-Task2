@@ -2,28 +2,24 @@ package com.platinum.task_manager;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import io.kubernetes.client.openapi.ApiClient;
-import io.kubernetes.client.openapi.Configuration;
-import io.kubernetes.client.openapi.apis.CoreV1Api;
-import io.kubernetes.client.openapi.models.V1Container;
-import io.kubernetes.client.openapi.models.V1ObjectMeta;
-import io.kubernetes.client.openapi.models.V1Pod;
-import io.kubernetes.client.openapi.models.V1PodSpec;
-import io.kubernetes.client.util.Config;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
 @RestController
 @RequestMapping("/tasks")
+@CrossOrigin(origins = "http://localhost:3000")
 public class TaskController {
+    
     @Autowired
     private TaskRepository repo;
 
     @GetMapping
-    public List<Task> allTasks() { 
-        return repo.findAll(); 
+    public List<Task> allTasks(@RequestParam(required = false) String owner) { 
+        if (owner != null && !owner.isEmpty()) {
+            return repo.findByOwner(owner);
+        }
+        return repo.findAll();
     }
 
     @GetMapping("/{id}")
@@ -41,8 +37,12 @@ public class TaskController {
 
     @PutMapping("/{id}")
     public Task update(@PathVariable String id, @RequestBody Task t) {
-        t.setId(id);
-        return repo.save(t);
+        return repo.findById(id).map(task -> {
+            task.setName(t.getName());
+            task.setOwner(t.getOwner());
+            task.setCommand(t.getCommand());
+            return repo.save(task);
+        }).orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "Task not found: " + id));
     }
 
     @DeleteMapping("/{id}")
@@ -62,7 +62,6 @@ public class TaskController {
         return result;
     }
 
-    @SuppressWarnings("null")
     @PutMapping("/{id}/execute")
     public Task execute(@PathVariable String id) {
         Task t = repo.findById(id).orElse(null);
@@ -73,79 +72,30 @@ public class TaskController {
 
         try {
             String cmd = t.getCommand();
-            System.out.println("KUBERNETES EXECUTE - Command: " + cmd);
+            System.out.println("EXECUTE - Command: " + cmd);
             
             if (cmd != null && cmd.startsWith("echo ")) {
                 long start = System.currentTimeMillis();
                 
-                System.out.println("Initializing Kubernetes client...");
-                ApiClient client = Config.defaultClient();
-                Configuration.setDefaultApiClient(client);
-                CoreV1Api api = new CoreV1Api();
+                Process process = Runtime.getRuntime().exec(cmd);
+                process.waitFor();
                 
-                String podName = "command-pod-" + System.currentTimeMillis();
-                System.out.println("Creating pod: " + podName);
+                java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getInputStream())
+                );
                 
-                V1Pod pod = new V1Pod();
-                V1ObjectMeta metadata = new V1ObjectMeta();
-                metadata.setName(podName);
-                pod.setMetadata(metadata);
-                
-                V1PodSpec spec = new V1PodSpec();
-                spec.setRestartPolicy("Never");
-                
-                V1Container container = new V1Container();
-                container.setName("busybox");
-                container.setImage("busybox");
-                container.setCommand(Arrays.asList("sh", "-c", cmd));
-                
-                spec.setContainers(Arrays.asList(container));
-                pod.setSpec(spec);
-                
-                api.createNamespacedPod("default", pod, null, null, null, null);
-                System.out.println("Pod created successfully");
-                
-                // Wait for pod to complete
-                System.out.println("Waiting for pod to complete...");
-                int maxWait = 30;
-                for (int i = 0; i < maxWait; i++) {
-                    Thread.sleep(1000);
-                    V1Pod podStatus = api.readNamespacedPod(podName, "default", null);
-                    String phase = podStatus.getStatus().getPhase();
-                    System.out.println("Pod status: " + phase);
-                    
-                    if ("Succeeded".equals(phase) || "Failed".equals(phase)) {
-                        break;
-                    }
+                StringBuilder output = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line).append("\n");
                 }
-                
-                System.out.println("Reading pod logs...");
-                String output = api.readNamespacedPodLog(
-                    podName, 
-                    "default", 
-                    null, 
-                    Boolean.FALSE, 
-                    Boolean.FALSE, 
-                    null, 
-                    null, 
-                    Boolean.FALSE, 
-                    null, 
-                    null, 
-                    Boolean.FALSE
-                );
-                System.out.println("Pod output: " + output);
-                
-                System.out.println("Deleting pod...");
-                api.deleteNamespacedPod(
-                    podName, "default", null, null, null, null, null, null
-                );
                 
                 long end = System.currentTimeMillis();
 
                 TaskExecution exec = new TaskExecution();
                 exec.setStartTime(new Date(start));
                 exec.setEndTime(new Date(end));
-                exec.setOutput(output);
+                exec.setOutput(output.toString());
 
                 if (t.getTaskExecutions() == null) {
                     t.setTaskExecutions(new ArrayList<>());
@@ -153,7 +103,7 @@ public class TaskController {
                 t.getTaskExecutions().add(exec);
                 
                 repo.save(t);
-                System.out.println("Task execution saved");
+                System.out.println("Task execution saved: " + output.toString());
             } else {
                 System.err.println("Command does not start with echo");
             }
