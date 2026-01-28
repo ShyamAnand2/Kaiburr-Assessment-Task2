@@ -1,5 +1,15 @@
 package com.platinum.task_manager;
 
+import io.kubernetes.client.openapi.ApiClient;
+import io.kubernetes.client.openapi.Configuration;
+import io.kubernetes.client.openapi.apis.CoreV1Api;
+import io.kubernetes.client.openapi.models.V1Container;
+import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1Pod;
+import io.kubernetes.client.openapi.models.V1PodSpec;
+import io.kubernetes.client.util.Config;
+import java.util.Arrays;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
@@ -10,6 +20,47 @@ import java.util.List;
 @RequestMapping("/tasks")
 @CrossOrigin(origins = "http://localhost:3000")
 public class TaskController {
+
+@SuppressWarnings("unused")
+private void triggerK8sPod(String taskId, String command) {
+    try {
+        // Initialize K8s Client - Use default config for local cluster/Docker Desktop
+        ApiClient client = Config.defaultClient();
+        Configuration.setDefaultApiClient(client);
+        CoreV1Api api = new CoreV1Api();
+
+        // 1. Create Pod Object
+        V1Pod pod = new V1Pod();
+        pod.setApiVersion("v1");
+        pod.setKind("Pod");
+
+        // 2. Set Metadata (Lower-case name is mandatory)
+        V1ObjectMeta metadata = new V1ObjectMeta();
+        String safeName = "task-exec-" + taskId.toLowerCase().replaceAll("[^a-z0-9]", "") + "-" + System.currentTimeMillis();
+        metadata.setName(safeName);
+        pod.setMetadata(metadata);
+
+        // 3. Define Container
+        V1Container container = new V1Container();
+        container.setName("busybox-exec");
+        container.setImage("busybox");
+        container.setCommand(Arrays.asList("sh", "-c", command));
+
+        // 4. Set Pod Spec
+        V1PodSpec spec = new V1PodSpec();
+        spec.setContainers(Arrays.asList(container));
+        spec.setRestartPolicy("Never");
+        pod.setSpec(spec);
+
+        // 5. Execute Creation
+        api.createNamespacedPod("default", pod, null, null, null, null);
+        System.out.println("Kubernetes Pod created: " + safeName);
+
+    } catch (Exception e) {
+        System.err.println("Kubernetes API Error: " + e.getMessage());
+        e.printStackTrace();
+    }
+}
     
     @Autowired
     private TaskRepository repo;
